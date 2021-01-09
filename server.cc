@@ -48,7 +48,20 @@ public:
 
     Tag getTagFromUnsubscribeMessage(string msg) { return msg.substr(1); }
 
+    bool validate_sub_unsub_message(string msg) {
+        auto msg_without_first = msg.substr(1);
+        for (auto ch : msg_without_first) {
+            if (!isalpha(ch)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     string subscribe(Client client, string msg) {
+        if (!validate_sub_unsub_message(msg)) {
+            throw invalid_argument("invalid tag");
+        }
         Tag subject = getTagFromSubscribeMessage(msg);
         if (isSubscribed(client, subject)) {
             auto message = "already subscribed +" + subject;
@@ -64,6 +77,9 @@ public:
     }
 
     string unsubscribe(Client client, string msg) {
+        if (!validate_sub_unsub_message(msg)) {
+            throw invalid_argument("invalid tag");
+        }
         Tag subject = getTagFromUnsubscribeMessage(msg);
         if (!isSubscribed(client, subject)) {
             auto message = "not subscribed +" + subject;
@@ -125,17 +141,31 @@ public:
         for (auto token : tokens) {
             if (token[0] == '#') {
                 Tag tag = getTagFromToken(token);
-                tags.emplace(tag);
+                if (tag != "") {
+                    tags.emplace(tag);
+                }
             }
         }
         return tags;
     }
 
     Tag getTagFromToken(Tag token) const {
+        // A tag has to have a single #.
         Tag tag = "";
+
+        uint8_t amount_of_hashtags = 0;
 
         for (size_t i = 0; i < token.size(); i++) {
             auto c = token[i];
+
+            if (c == '#') {
+                amount_of_hashtags++;
+            }
+
+            if (amount_of_hashtags == 2) {
+                // not valid.
+                return "";
+            }
 
             if (isalpha((int)c)) {
                 tag += c;

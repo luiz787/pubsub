@@ -3,6 +3,7 @@
   "files.associations": {
     "vector": "cpp",
     "iosfwd": "cpp",
-    "*.tcc": "cpp"
+    "*.tcc": "cpp",
+    "stdexcept": "cpp"
   }
 }
