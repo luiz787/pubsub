@@ -48,16 +48,13 @@ int main(int argc, char **argv) {
         memset(buf, 0, BUFSZ);
 
         printf("mensagem > ");
-        scanf("%s", buf);
-        // fgets(buf, BUFSZ - 1, stdin);
+        fgets(buf, BUFSZ - 1, stdin);
 
-        printf("read from keyboard: %s\n", buf);
+        printf("read from keyboard: %s", buf);
 
-        // add \n to denote end of msg
-        buf[strlen(buf)] = '\n';
-
-        size_t count = send(s, buf, strlen(buf) + 1, 0);
-        if (count != strlen(buf) + 1) {
+        // no null bytes over the network
+        size_t count = send(s, buf, strlen(buf), 0);
+        if (count != strlen(buf)) {
             logexit("send");
         }
 
