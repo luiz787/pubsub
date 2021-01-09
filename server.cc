@@ -112,7 +112,7 @@ public:
             // that means the client is interested in at least one of the
             // message's tags.
             if (!intersection.empty()) {
-                send(client.first, msg);
+                send_data(client.first, msg);
             }
         }
     }
@@ -125,10 +125,26 @@ public:
         }
     }
 
-    void send(int client, string msg) const {
+    void send_data(int client, string msg) const {
         cout << client << " would receive the following message: \"" << msg
              << "\"" << endl;
         // TODO: send msg to client.
+        char buffer[BUFSZ];
+        memset(buffer, 0, BUFSZ);
+        for (size_t i = 0; i < msg.size(); i++) {
+            buffer[i] = msg[i];
+        }
+
+        buffer[strlen(buffer)] = '\n';
+
+        cout << "Will send this: " << endl;
+
+        for (size_t i = 0; i < strlen(buffer) + 1; i++) {
+            cout << (int)buffer[i] << ", ";
+        }
+        cout << endl;
+
+        send(client, buffer, strlen(buffer), 0);
     }
 
     set<Tag> getTags(string msg) const {
@@ -219,6 +235,14 @@ Message parseMessage(char *buf) {
     printf("[log] @parseMessage, last char of message is: %d\n",
            aux[aux.size() - 1]);
 
+    auto bufzin = aux.c_str();
+
+    cout << "after parse to string: " << endl;
+    for (size_t i = 0; i < strlen(bufzin) + 1; i++) {
+        cout << (int)bufzin[i] << ", ";
+    }
+    cout << endl;
+
     message.content = aux;
     if (aux == "##kill") {
         message.type = KILL;
@@ -248,6 +272,7 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
             return broker->onMessage(msg.content);
             break;
         case KILL:
+            // FIXME: kill is causing SIGSEGV on clients.
             return broker->delete_all_clients();
         default:
             throw invalid_argument("unknown message type");
@@ -284,6 +309,12 @@ void *client_thread(void *data) {
 
         // TODO: receive partitioned message.
         size_t count = recv(cdata->csock, buf, BUFSZ, 0);
+
+        cout << "Received this: " << endl;
+        for (size_t i = 0; i < strlen(buf) + 1; i++) {
+            cout << (int)buf[i] << ", ";
+        }
+        cout << endl;
 
         char lastchar = buf[strlen(buf) - 1];
         printf("[log] char at last buf index: %d\n", lastchar);
