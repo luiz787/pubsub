@@ -146,6 +146,7 @@ void network_recv(Flags &shared) {
         unsigned total = 0;
         size_t count = 0;
         while (1) {
+            // TODO: receive partitioned messages.
             count = recv(shared.s, buf + total, BUFSZ - total, 0);
 
             std::string logMessage2;
