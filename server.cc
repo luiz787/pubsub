@@ -1,139 +1,232 @@
+#include "common.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <thread>
+#include <unistd.h>
+
+#include <sys/socket.h>
+#include <sys/types.h>
+
+#include <algorithm>
+#include <iostream>
+#include <iterator>
 #include <map>
 #include <set>
-#include <algorithm>
+#include <sstream>
 #include <string>
 #include <vector>
-#include <sstream>
-#include <iterator>
-#include <iostream>
 
 using namespace std;
 
 typedef string Client;
 typedef string Tag;
 
-class MessageBroker
-{
+#define BUFSZ 501
+class MessageBroker {
 private:
-  map<Client, set<Tag>> controlMap;
+    map<Client, set<Tag>> controlMap;
 
 public:
-  MessageBroker()
-  {
-    this->controlMap = map<Client, set<Tag>>();
-  }
+    MessageBroker() { this->controlMap = map<Client, set<Tag>>(); }
 
-  void subscribe(Client client, Tag subject)
-  {
-    if (isSubscribed(client, subject))
-    {
-      auto message = "already subscribed +" + subject;
-      throw invalid_argument(message);
-    }
-    controlMap[client].emplace(subject);
-  }
-
-  bool isSubscribed(Client client, Tag subject)
-  {
-    auto element = controlMap[client].find(subject);
-    return element != controlMap[client].end();
-  }
-
-  void unsubscribe(Client client, Tag subject)
-  {
-    if (!isSubscribed(client, subject))
-    {
-      auto message = "not subscribed +" + subject;
-      throw invalid_argument(message);
+    void subscribe(Client client, Tag subject) {
+        if (isSubscribed(client, subject)) {
+            auto message = "already subscribed +" + subject;
+            throw invalid_argument(message);
+        }
+        controlMap[client].emplace(subject);
     }
 
-    controlMap[client].erase(subject);
-  }
-
-  void onMessage(string msg)
-  {
-    auto tags = getTags(msg);
-    publish(msg, tags);
-  }
-
-  void publish(string msg, set<Tag> tags)
-  {
-    for (auto client : controlMap)
-    {
-      auto tagsOfInterest = client.second;
-
-      // debugPrint(client);
-
-      vector<Tag> intersection;
-      set_intersection(tagsOfInterest.begin(), tagsOfInterest.end(), tags.begin(), tags.end(), std::back_inserter(intersection));
-
-      // If the intersection between the set of tags that the client is interested in and the set of tags in the message
-      // is not empty, that means the client is interested in at least one of the message's tags.
-      if (!intersection.empty())
-      {
-        send(client.first, msg);
-      }
+    bool isSubscribed(Client client, Tag subject) {
+        auto element = controlMap[client].find(subject);
+        return element != controlMap[client].end();
     }
-  }
 
-  void debugPrint(pair<Client, set<Tag>> clientData)
-  {
-    cout << "Client " << clientData.first << endl;
-    cout << "Tags of interest:" << endl;
-    for (auto tag : clientData.second)
-    {
-      cout << tag << endl;
+    void unsubscribe(Client client, Tag subject) {
+        if (!isSubscribed(client, subject)) {
+            auto message = "not subscribed +" + subject;
+            throw invalid_argument(message);
+        }
+
+        controlMap[client].erase(subject);
     }
-  }
 
-  void send(string client, string msg) const
-  {
-    cout << client << " would receive the following message: \"" << msg << "\"" << endl;
-    // TODO: send msg to client.
-  }
-
-  set<Tag> getTags(string msg) const
-  {
-    istringstream iss(msg);
-    vector<string> tokens{
-        istream_iterator<string>{iss},
-        istream_iterator<string>{}};
-
-    set<Tag> tags = set<Tag>();
-
-    for (auto token : tokens)
-    {
-      if (token[0] == '#')
-      {
-        Tag tag = getTagFromToken(token);
-        tags.emplace(tag);
-      }
+    void onMessage(string msg) {
+        auto tags = getTags(msg);
+        publish(msg, tags);
     }
-    return tags;
-  }
 
-  Tag getTagFromToken(Tag token) const
-  {
-    Tag tag = "";
+    void publish(string msg, set<Tag> tags) {
+        for (auto client : controlMap) {
+            auto tagsOfInterest = client.second;
 
-    for (size_t i = 0; i < token.size(); i++)
-    {
-      auto c = token[i];
+            // debugPrint(client);
 
-      if (isalpha((int)c))
-      {
-        tag += c;
-      }
+            vector<Tag> intersection;
+            set_intersection(tagsOfInterest.begin(), tagsOfInterest.end(),
+                             tags.begin(), tags.end(),
+                             std::back_inserter(intersection));
+
+            // If the intersection between the set of tags that the client is
+            // interested in and the set of tags in the message is not empty,
+            // that means the client is interested in at least one of the
+            // message's tags.
+            if (!intersection.empty()) {
+                send(client.first, msg);
+            }
+        }
     }
-    return tag;
-  }
+
+    void debugPrint(pair<Client, set<Tag>> clientData) {
+        cout << "Client " << clientData.first << endl;
+        cout << "Tags of interest:" << endl;
+        for (auto tag : clientData.second) {
+            cout << tag << endl;
+        }
+    }
+
+    void send(string client, string msg) const {
+        cout << client << " would receive the following message: \"" << msg
+             << "\"" << endl;
+        // TODO: send msg to client.
+    }
+
+    set<Tag> getTags(string msg) const {
+        istringstream iss(msg);
+        vector<string> tokens{istream_iterator<string>{iss},
+                              istream_iterator<string>{}};
+
+        set<Tag> tags = set<Tag>();
+
+        for (auto token : tokens) {
+            if (token[0] == '#') {
+                Tag tag = getTagFromToken(token);
+                tags.emplace(tag);
+            }
+        }
+        return tags;
+    }
+
+    Tag getTagFromToken(Tag token) const {
+        Tag tag = "";
+
+        for (size_t i = 0; i < token.size(); i++) {
+            auto c = token[i];
+
+            if (isalpha((int)c)) {
+                tag += c;
+            }
+        }
+        return tag;
+    }
 };
 
-int main()
-{
+void usage(int argc, char **argv) {
+    printf("usage: %s <server port>\n", argv[0]);
+    printf("example: %s 1337\n", argv[0]);
+    exit(EXIT_FAILURE);
+}
 
-  MessageBroker broker;
-  broker.unsubscribe("Luiz", "pipoca");
+struct client_data {
+    int csock;
+    struct sockaddr_storage storage;
+};
 
-  return 0;
+void *client_thread(void *data) {
+    struct client_data *cdata = (struct client_data *)data;
+    struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);
+
+    char caddrstr[BUFSZ];
+    addrtostr(caddr, caddrstr, BUFSZ);
+    printf("[log] connection from %s\n", caddrstr);
+
+    char buf[BUFSZ];
+
+    while (1) {
+        memset(buf, 0, BUFSZ);
+        size_t count = recv(cdata->csock, buf, BUFSZ, 0);
+
+        char lastchar = buf[strlen(buf) - 1];
+        printf("[log] char at last buf index: %d\n", lastchar);
+
+        if (count == 0) {
+            printf("[log] client %s disconnected.\n", caddrstr);
+            break;
+        }
+        printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf);
+        sprintf(buf, "remote endpoint: %.400s\n", caddrstr);
+
+        // Will send the exact length of buf in order to avoid sending
+        // the null terminator over the network.
+        count = send(cdata->csock, buf, strlen(buf), 0);
+        if (count != strlen(buf)) {
+            logexit("send");
+        }
+    }
+
+    printf("[log] closing connection with %s\n", caddrstr);
+    close(cdata->csock);
+
+    pthread_exit(EXIT_SUCCESS);
+}
+
+int main(int argc, char **argv) {
+    if (argc < 2) {
+        usage(argc, argv);
+    }
+
+    struct sockaddr_storage storage;
+    if (0 != server_sockaddr_init(argv[1], &storage)) {
+        usage(argc, argv);
+    }
+
+    int s;
+    s = socket(storage.ss_family, SOCK_STREAM, 0);
+    if (s == -1) {
+        logexit("socket");
+    }
+
+    int enable = 1;
+    if (0 != setsockopt(s, SOL_SOCKET, SO_REUSEADDR, &enable, sizeof(int))) {
+        logexit("setsockopt");
+    }
+
+    struct sockaddr *addr = (struct sockaddr *)(&storage);
+    if (0 != bind(s, addr, sizeof(storage))) {
+        logexit("bind");
+    }
+
+    if (0 != listen(s, 10)) {
+        logexit("listen");
+    }
+
+    char addrstr[BUFSZ];
+    addrtostr(addr, addrstr, BUFSZ);
+    printf("bound to %s, waiting connections\n", addrstr);
+
+    while (1) {
+        struct sockaddr_storage cstorage;
+        struct sockaddr *caddr = (struct sockaddr *)(&cstorage);
+
+        socklen_t caddrlen = sizeof(cstorage);
+
+        int csock = accept(s, caddr, &caddrlen);
+        if (csock == -1) {
+            logexit("accept");
+        }
+
+        struct client_data *cdata = new client_data;
+        if (!cdata) {
+            logexit("malloc");
+        }
+        cdata->csock = csock;
+        memcpy(&(cdata->storage), &cstorage, sizeof(cstorage));
+
+        pthread_t tid;
+        pthread_create(&tid, NULL, client_thread, cdata);
+    }
+
+    exit(EXIT_SUCCESS);
 }
