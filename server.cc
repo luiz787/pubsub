@@ -212,6 +212,15 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
     }
 }
 
+bool validate_message(Message message) {
+    for (auto ch : message.content) {
+        if (static_cast<unsigned char>(ch) > 127) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void *client_thread(void *data) {
     struct client_data *cdata = (struct client_data *)data;
     struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);
@@ -241,6 +250,12 @@ void *client_thread(void *data) {
 
         // parse msg
         Message message = parseMessage(buf);
+        if (!validate_message(message)) {
+            printf("[log] message sent by client %s is invalid, aborting "
+                   "connection\n",
+                   caddrstr);
+            break;
+        }
         printf("[log] message type: %s\n",
                getMessageType(message.type).c_str());
 

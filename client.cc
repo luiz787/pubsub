@@ -17,6 +17,22 @@ void usage(int argc, char **argv) {
 
 #define BUFSZ 1024
 
+bool validate_message(char *msg, size_t size) {
+    for (size_t i = 0; i < size; i++) {
+        if (static_cast<unsigned char>(msg[i]) > 127) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int onexit(int s) {
+    printf("[log] connection terminated.\n");
+    close(s);
+
+    return EXIT_SUCCESS;
+}
+
 int main(int argc, char **argv) {
     if (argc < 3) {
         usage(argc, argv);
@@ -65,11 +81,14 @@ int main(int argc, char **argv) {
             printf("[log] count = %lu\n", count);
             if (count == 0) {
                 // Connection terminated
-                printf("[log] connection terminated.\n");
-                break;
+                return onexit(s);
             }
 
             total += count;
+            if (!validate_message(buf, total)) {
+                // Invalid message, exiting
+                return onexit(s);
+            }
 
             puts(buf);
 
@@ -86,8 +105,5 @@ int main(int argc, char **argv) {
         puts(buf);
     }
 
-    printf("[log] connection terminated.\n");
-    close(s);
-
-    return EXIT_SUCCESS;
+    return onexit(s);
 }
