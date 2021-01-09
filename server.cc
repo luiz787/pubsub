@@ -24,6 +24,7 @@ typedef int Client;
 typedef string Tag;
 
 #define BUFSZ 500
+
 class MessageBroker {
 private:
     map<Client, set<Tag>> controlMap;
@@ -32,6 +33,16 @@ public:
     MessageBroker() { this->controlMap = map<Client, set<Tag>>(); }
 
     void delete_client(Client client) { controlMap.erase(client); }
+
+    string delete_all_clients() {
+        for (auto kv : controlMap) {
+            close(kv.first);
+        }
+
+        controlMap.clear();
+
+        return "ok";
+    }
 
     Tag getTagFromSubscribeMessage(string msg) { return msg.substr(1); }
 
@@ -146,7 +157,7 @@ struct client_data {
     struct sockaddr_storage storage;
 };
 
-enum MessageType { SUBSCRIBE, UNSUBSCRIBE, MESSAGE };
+enum MessageType { SUBSCRIBE, UNSUBSCRIBE, MESSAGE, KILL };
 
 struct Message {
     MessageType type;
@@ -161,6 +172,8 @@ string getMessageType(MessageType type) {
         return "UNSUBSCRIBE";
     case MESSAGE:
         return "MESSAGE";
+    case KILL:
+        return "KILL";
     default:
         return "unknown";
     }
@@ -177,7 +190,9 @@ Message parseMessage(char *buf) {
            aux[aux.size() - 1]);
 
     message.content = aux;
-    if (firstletter == '+') {
+    if (aux == "##kill") {
+        message.type = KILL;
+    } else if (firstletter == '+') {
         message.type = SUBSCRIBE;
     } else if (firstletter == '-') {
         message.type = UNSUBSCRIBE;
@@ -202,6 +217,8 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
         case MESSAGE:
             return broker->onMessage(msg.content);
             break;
+        case KILL:
+            return broker->delete_all_clients();
         default:
             throw invalid_argument("unknown message type");
             break;
@@ -260,6 +277,11 @@ void *client_thread(void *data) {
                getMessageType(message.type).c_str());
 
         string res = performAction(cdata->csock, broker, message);
+
+        if (message.type == KILL) {
+            printf("[log] received kill message, terminating...\n");
+            exit(EXIT_SUCCESS);
+        }
         sprintf(buf, "%.400s\n", res.c_str());
 
         // Will send the exact length of buf in order to avoid sending
