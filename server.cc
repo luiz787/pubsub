@@ -31,6 +31,8 @@ private:
 public:
     MessageBroker() { this->controlMap = map<Client, set<Tag>>(); }
 
+    void delete_client(Client client) { controlMap.erase(client); }
+
     Tag getTagFromSubscribeMessage(string msg) { return msg.substr(1); }
 
     Tag getTagFromUnsubscribeMessage(string msg) { return msg.substr(1); }
@@ -254,6 +256,7 @@ void *client_thread(void *data) {
     }
 
     printf("[log] closing connection with %s\n", caddrstr);
+    broker->delete_client(cdata->csock);
     close(cdata->csock);
 
     pthread_exit(EXIT_SUCCESS);
