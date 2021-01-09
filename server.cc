@@ -20,10 +20,10 @@
 
 using namespace std;
 
-typedef string Client;
+typedef int Client;
 typedef string Tag;
 
-#define BUFSZ 501
+#define BUFSZ 500
 class MessageBroker {
 private:
     map<Client, set<Tag>> controlMap;
@@ -31,12 +31,18 @@ private:
 public:
     MessageBroker() { this->controlMap = map<Client, set<Tag>>(); }
 
-    void subscribe(Client client, Tag subject) {
+    Tag getTagFromSubscribeMessage(string msg) { return msg.substr(1); }
+
+    Tag getTagFromUnsubscribeMessage(string msg) { return msg.substr(1); }
+
+    string subscribe(Client client, string msg) {
+        Tag subject = getTagFromSubscribeMessage(msg);
         if (isSubscribed(client, subject)) {
             auto message = "already subscribed +" + subject;
             throw invalid_argument(message);
         }
         controlMap[client].emplace(subject);
+        return "subscribed +" + subject;
     }
 
     bool isSubscribed(Client client, Tag subject) {
@@ -44,18 +50,21 @@ public:
         return element != controlMap[client].end();
     }
 
-    void unsubscribe(Client client, Tag subject) {
+    string unsubscribe(Client client, string msg) {
+        Tag subject = getTagFromUnsubscribeMessage(msg);
         if (!isSubscribed(client, subject)) {
             auto message = "not subscribed +" + subject;
             throw invalid_argument(message);
         }
 
         controlMap[client].erase(subject);
+        return "unsubscribed -" + subject;
     }
 
-    void onMessage(string msg) {
+    string onMessage(string msg) {
         auto tags = getTags(msg);
         publish(msg, tags);
+        return "ok";
     }
 
     void publish(string msg, set<Tag> tags) {
@@ -87,7 +96,7 @@ public:
         }
     }
 
-    void send(string client, string msg) const {
+    void send(int client, string msg) const {
         cout << client << " would receive the following message: \"" << msg
              << "\"" << endl;
         // TODO: send msg to client.
@@ -130,13 +139,81 @@ void usage(int argc, char **argv) {
 }
 
 struct client_data {
+    MessageBroker *broker;
     int csock;
     struct sockaddr_storage storage;
 };
 
+enum MessageType { SUBSCRIBE, UNSUBSCRIBE, MESSAGE };
+
+struct Message {
+    MessageType type;
+    string content;
+};
+
+string getMessageType(MessageType type) {
+    switch (type) {
+    case SUBSCRIBE:
+        return "SUBSCRIBE";
+    case UNSUBSCRIBE:
+        return "UNSUBSCRIBE";
+    case MESSAGE:
+        return "MESSAGE";
+    default:
+        return "unknown";
+    }
+}
+
+Message parseMessage(char *buf) {
+    char firstletter = buf[0];
+    Message message;
+    string aux = buf;
+
+    aux = aux.substr(0, aux.size() - 1);
+
+    printf("[log] @parseMessage, last char of message is: %d\n",
+           aux[aux.size() - 1]);
+
+    message.content = aux;
+    if (firstletter == '+') {
+        message.type = SUBSCRIBE;
+    } else if (firstletter == '-') {
+        message.type = UNSUBSCRIBE;
+    } else {
+        message.type = MESSAGE;
+    }
+
+    return message;
+}
+
+string performAction(int socket, MessageBroker *broker, Message msg) {
+    try {
+        switch (msg.type) {
+        case SUBSCRIBE:
+            printf("[log] handling subscribe msg\n");
+            cout << msg.content << endl;
+            return broker->subscribe(socket, msg.content);
+            break;
+        case UNSUBSCRIBE:
+            return broker->unsubscribe(socket, msg.content);
+            break;
+        case MESSAGE:
+            return broker->onMessage(msg.content);
+            break;
+        default:
+            throw invalid_argument("unknown message type");
+            break;
+        }
+    } catch (const exception &e) {
+        printf("[error]: %s\n", e.what());
+        return e.what();
+    }
+}
+
 void *client_thread(void *data) {
     struct client_data *cdata = (struct client_data *)data;
     struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);
+    auto broker = cdata->broker;
 
     char caddrstr[BUFSZ];
     addrtostr(caddr, caddrstr, BUFSZ);
@@ -146,6 +223,8 @@ void *client_thread(void *data) {
 
     while (1) {
         memset(buf, 0, BUFSZ);
+
+        // TODO: receive partitioned message.
         size_t count = recv(cdata->csock, buf, BUFSZ, 0);
 
         char lastchar = buf[strlen(buf) - 1];
@@ -155,8 +234,16 @@ void *client_thread(void *data) {
             printf("[log] client %s disconnected.\n", caddrstr);
             break;
         }
+
         printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf);
-        sprintf(buf, "remote endpoint: %.400s\n", caddrstr);
+
+        // parse msg
+        Message message = parseMessage(buf);
+        printf("[log] message type: %s\n",
+               getMessageType(message.type).c_str());
+
+        string res = performAction(cdata->csock, broker, message);
+        sprintf(buf, "%.400s\n", res.c_str());
 
         // Will send the exact length of buf in order to avoid sending
         // the null terminator over the network.
@@ -206,6 +293,8 @@ int main(int argc, char **argv) {
     addrtostr(addr, addrstr, BUFSZ);
     printf("bound to %s, waiting connections\n", addrstr);
 
+    MessageBroker broker = MessageBroker();
+
     while (1) {
         struct sockaddr_storage cstorage;
         struct sockaddr *caddr = (struct sockaddr *)(&cstorage);
@@ -222,6 +311,7 @@ int main(int argc, char **argv) {
             logexit("malloc");
         }
         cdata->csock = csock;
+        cdata->broker = &broker;
         memcpy(&(cdata->storage), &cstorage, sizeof(cstorage));
 
         pthread_t tid;
