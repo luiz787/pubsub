@@ -87,6 +87,7 @@ void *client_thread(void *data) {
         size_t count = 0;
         bool found_terminator = false;
         while (1) {
+            // FIXME: deal w/ multiple \n
             count = recv(cdata->csock, buf + total, BUFSZ - total, 0);
 
             cout << "Received this: " << endl;
@@ -130,6 +131,8 @@ void *client_thread(void *data) {
         printf("[msg] full: %s, %d bytes: %s\n", caddrstr, (int)count, buf);
 
         // parse msg
+        // TODO: create a vector of strings separated by \n, and process each
+        // separately.
         auto message = Message::from_buffer(buf);
         if (!validate_message(message)) {
             printf("[log] message sent by client %s is invalid, aborting "
