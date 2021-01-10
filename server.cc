@@ -87,17 +87,16 @@ void *client_thread(void *data) {
         size_t count = 0;
         bool found_terminator = false;
         while (1) {
-            // FIXME: deal w/ multiple \n
             count = recv(cdata->csock, buf + total, BUFSZ - total, 0);
 
-            cout << "Received this: " << endl;
+            /*cout << "Received this: " << endl;
             for (size_t i = 0; i < strlen(buf); i++) {
                 if (buf[i] == '\n') {
                     found_terminator = true;
                 }
                 cout << (int)buf[i] << ", ";
             }
-            cout << endl;
+            cout << endl;*/
             char lastchar = buf[strlen(buf) - 1];
             printf("[log] char at last buf index: %d\n", lastchar);
             if (count == 0) {
@@ -152,15 +151,17 @@ void *client_thread(void *data) {
                 exit(EXIT_SUCCESS);
             }
 
-            char send_buf[BUFSZ];
-            memset(send_buf, 0, BUFSZ);
-            sprintf(send_buf, "%.400s\n", res.c_str());
+            if (message.get_type() != MESSAGE) {
+                char send_buf[BUFSZ];
+                memset(send_buf, 0, BUFSZ);
+                sprintf(send_buf, "%.400s\n", res.c_str());
 
-            // Will send the exact length of buf in order to avoid sending
-            // the null terminator over the network.
-            count = send(cdata->csock, send_buf, strlen(send_buf), 0);
-            if (count != strlen(send_buf)) {
-                logexit("send");
+                // Will send the exact length of the buffer in order to avoid
+                // sending the null terminator over the network.
+                count = send(cdata->csock, send_buf, strlen(send_buf), 0);
+                if (count != strlen(send_buf)) {
+                    logexit("send");
+                }
             }
         }
     }

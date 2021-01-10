@@ -71,7 +71,7 @@ std::string MessageBroker::unsubscribe(Client client, std::string msg) {
 std::string MessageBroker::onMessage(std::string msg) {
     auto tags = this->getTags(msg);
     this->publish(msg, tags);
-    return "ok";
+    return "";
 }
 
 void MessageBroker::publish(std::string msg, std::set<Tag> tags) {
