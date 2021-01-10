@@ -34,13 +34,6 @@ bool validate_message(char *msg, size_t size) {
     return true;
 }
 
-int onexit(int s) {
-    printf("[log] connection terminated.\n");
-    close(s);
-
-    return EXIT_SUCCESS;
-}
-
 int getChar() {
     struct termios oldattr;
     tcgetattr(STDIN_FILENO, &oldattr);
@@ -139,6 +132,13 @@ struct Flags // this flag is shared between both the threads
     Flags() {}
 };
 
+int onexit(Flags &shared) {
+    shared.console.write("[log] connection terminated.");
+    close(shared.s);
+
+    exit(EXIT_SUCCESS);
+}
+
 void network_recv(Flags &shared) {
     char buf[BUFSZ];
     while (1) {
@@ -156,14 +156,14 @@ void network_recv(Flags &shared) {
             // printf("[log] count = %lu\n", count);
             if (count == 0) {
                 // Connection terminated
-                onexit(shared.s);
+                onexit(shared);
             }
 
             total += count;
             if (!validate_message(buf, total)) {
                 shared.console.write("invalid message received");
                 // Invalid message, exiting
-                onexit(shared.s);
+                onexit(shared);
             }
 
             char lastchar = buf[total - 1];
@@ -249,5 +249,5 @@ int main(int argc, char **argv) {
         processInput(input, shared);
     }
     threadProc.join();
-    return onexit(s);
+    return onexit(shared);
 }
