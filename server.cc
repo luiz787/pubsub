@@ -82,7 +82,7 @@ public:
         }
         Tag subject = getTagFromUnsubscribeMessage(msg);
         if (!isSubscribed(client, subject)) {
-            auto message = "not subscribed +" + subject;
+            auto message = "not subscribed -" + subject;
             throw invalid_argument(message);
         }
 
@@ -309,11 +309,15 @@ void *client_thread(void *data) {
 
         unsigned total = 0;
         size_t count = 0;
+        bool found_terminator = false;
         while (1) {
             count = recv(cdata->csock, buf + total, BUFSZ - total, 0);
 
             cout << "Received this: " << endl;
-            for (size_t i = 0; i < strlen(buf) + 1; i++) {
+            for (size_t i = 0; i < strlen(buf); i++) {
+                if (buf[i] == '\n') {
+                    found_terminator = true;
+                }
                 cout << (int)buf[i] << ", ";
             }
             cout << endl;
@@ -330,11 +334,19 @@ void *client_thread(void *data) {
                 break;
             }
             printf("[msg] part: %s, %d bytes: %s\n", caddrstr, (int)count, buf);
+            if (total == BUFSZ && !found_terminator) {
+                break;
+            }
             if (total > BUFSZ) {
                 logexit("dos");
             }
         }
 
+        if (total == BUFSZ && !found_terminator) {
+            printf("[log] client sent max amount of bytes but no message "
+                   "terminator, aborting connection.\n");
+            break;
+        }
         if (count == 0) {
             printf("[log] client %s disconnected.\n", caddrstr);
             break;
