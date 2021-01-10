@@ -75,6 +75,13 @@ std::string MessageBroker::onMessage(std::string msg) {
 }
 
 void MessageBroker::publish(std::string msg, std::set<Tag> tags) {
+    printf("[log] message %lu has the following tags: \n", msg.size());
+
+    for (auto tag : tags) {
+        printf("%s, ", tag.c_str());
+    }
+    printf("\n");
+
     for (auto client : this->controlMap) {
         auto tagsOfInterest = client.second;
 

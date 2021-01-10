@@ -60,9 +60,9 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
     }
 }
 
-bool validate_message(Message message) {
-    for (auto ch : message.get_content()) {
-        if (static_cast<unsigned char>(ch) > 127) {
+bool validate_message(char *buffer) {
+    for (size_t i = 0; i < strlen(buffer); i++) {
+        if (static_cast<unsigned char>(buffer[i]) > 127) {
             return false;
         }
     }
@@ -130,32 +130,38 @@ void *client_thread(void *data) {
         }
         printf("[msg] full: %s, %d bytes: %s\n", caddrstr, (int)count, buf);
 
-        // parse msg
-        // TODO: create a vector of strings separated by \n, and process each
-        // separately.
-        auto message = Message::from_buffer(buf);
-        if (!validate_message(message)) {
+        if (!validate_message(buf)) {
             printf("[log] message sent by client %s is invalid, aborting "
                    "connection\n",
                    caddrstr);
             break;
         }
 
-        printf("[log] message type: %s\n", message.get_str_type().c_str());
+        // parse msg
+        // TODO: create a vector of strings separated by \n, and process each
+        // separately.
+        auto messages = Message::from_buffer(buf);
+        for (auto message : messages) {
 
-        string res = performAction(cdata->csock, broker, message);
+            printf("[log] message type: %s\n", message.get_str_type().c_str());
 
-        if (message.get_type() == KILL) {
-            printf("[log] received kill message, terminating...\n");
-            exit(EXIT_SUCCESS);
-        }
-        sprintf(buf, "%.400s\n", res.c_str());
+            string res = performAction(cdata->csock, broker, message);
 
-        // Will send the exact length of buf in order to avoid sending
-        // the null terminator over the network.
-        count = send(cdata->csock, buf, strlen(buf), 0);
-        if (count != strlen(buf)) {
-            logexit("send");
+            if (message.get_type() == KILL) {
+                printf("[log] received kill message, terminating...\n");
+                exit(EXIT_SUCCESS);
+            }
+
+            char send_buf[BUFSZ];
+            memset(send_buf, 0, BUFSZ);
+            sprintf(send_buf, "%.400s\n", res.c_str());
+
+            // Will send the exact length of buf in order to avoid sending
+            // the null terminator over the network.
+            count = send(cdata->csock, send_buf, strlen(send_buf), 0);
+            if (count != strlen(send_buf)) {
+                logexit("send");
+            }
         }
     }
 

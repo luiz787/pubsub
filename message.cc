@@ -3,24 +3,54 @@
 Message::Message(MessageType type, std::string content)
     : type(type), content(content) {}
 
-Message Message::from_buffer(char *buffer) {
-    char firstletter = buffer[0];
-    std::string aux = buffer;
+std::vector<Message> Message::from_buffer(char *buffer) {
+    std::vector<std::string> msgs;
+    int start = 0;
+    for (size_t i = 0; i < strlen(buffer); i++) {
+        if (buffer[i] == '\n') {
+            printf("[debug] copying %lu bytes from buffer to aux buffer.\n",
+                   i - start);
 
-    aux = aux.substr(0, aux.size() - 1);
+            for (size_t j = start; j <= i; j++) {
+                printf("%c - %d : ", buffer[j], (int)buffer[j]);
+            }
 
-    MessageType type;
-    if (aux == "##kill") {
-        type = KILL;
-    } else if (firstletter == '+') {
-        type = SUBSCRIBE;
-    } else if (firstletter == '-') {
-        type = UNSUBSCRIBE;
-    } else {
-        type = MESSAGE;
+            std::string msg;
+            for (size_t j = start; j <= i; j++) {
+                msg += buffer[j];
+            }
+
+            printf("exact content copied: %s", msg.c_str());
+            msgs.push_back(msg);
+            start = i + 1;
+        }
     }
 
-    return Message(type, aux);
+    printf("[log] found %lu messages in buffer.\n", msgs.size());
+
+    std::vector<Message> messages;
+
+    for (auto msg : msgs) {
+        char firstletter = msg[0];
+        std::string aux = msg;
+        printf("[log] aux size: %lu\n", aux.size());
+
+        aux = aux.substr(0, aux.size() - 1);
+
+        MessageType type;
+        if (aux == "##kill") {
+            type = KILL;
+        } else if (firstletter == '+') {
+            type = SUBSCRIBE;
+        } else if (firstletter == '-') {
+            type = UNSUBSCRIBE;
+        } else {
+            type = MESSAGE;
+        }
+        messages.push_back(Message(type, aux));
+    }
+
+    return messages;
 }
 
 std::string Message::get_str_type() {
