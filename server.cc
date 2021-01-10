@@ -307,24 +307,39 @@ void *client_thread(void *data) {
     while (1) {
         memset(buf, 0, BUFSZ);
 
-        // TODO: receive partitioned message.
-        size_t count = recv(cdata->csock, buf, BUFSZ, 0);
+        unsigned total = 0;
+        size_t count = 0;
+        while (1) {
+            count = recv(cdata->csock, buf + total, BUFSZ - total, 0);
 
-        cout << "Received this: " << endl;
-        for (size_t i = 0; i < strlen(buf) + 1; i++) {
-            cout << (int)buf[i] << ", ";
+            cout << "Received this: " << endl;
+            for (size_t i = 0; i < strlen(buf) + 1; i++) {
+                cout << (int)buf[i] << ", ";
+            }
+            cout << endl;
+            char lastchar = buf[strlen(buf) - 1];
+            printf("[log] char at last buf index: %d\n", lastchar);
+            if (count == 0) {
+                printf("[log] client %s disconnected.\n", caddrstr);
+                break;
+            }
+
+            total += count;
+            if (lastchar == '\n') {
+                // message received fully, continue.
+                break;
+            }
+            printf("[msg] part: %s, %d bytes: %s\n", caddrstr, (int)count, buf);
+            if (total > BUFSZ) {
+                logexit("dos");
+            }
         }
-        cout << endl;
-
-        char lastchar = buf[strlen(buf) - 1];
-        printf("[log] char at last buf index: %d\n", lastchar);
 
         if (count == 0) {
             printf("[log] client %s disconnected.\n", caddrstr);
             break;
         }
-
-        printf("[msg] %s, %d bytes: %s\n", caddrstr, (int)count, buf);
+        printf("[msg] full: %s, %d bytes: %s\n", caddrstr, (int)count, buf);
 
         // parse msg
         Message message = parseMessage(buf);
