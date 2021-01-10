@@ -2,7 +2,13 @@
 #define COMMON_H
 
 #include <stdlib.h>
+#include <string>
 #include <sys/socket.h>
+
+#define BUFSZ 500
+
+typedef int Client;
+typedef std::string Tag;
 
 void logexit(const char *msg);
 int server_sockaddr_init(const char *portstr, struct sockaddr_storage *storage);

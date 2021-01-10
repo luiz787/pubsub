@@ -34,7 +34,7 @@ bool validate_message(char *msg, size_t size) {
     return true;
 }
 
-int getChar() {
+int get_char() {
     struct termios oldattr;
     tcgetattr(STDIN_FILENO, &oldattr);
     struct termios newattr = oldattr;
@@ -47,11 +47,8 @@ int getChar() {
 
 class Console {
 private:
-    // mutex for console I/O
     std::mutex _mtx;
-    // current input
     std::string _input;
-    // prompt output
     std::string _prompt;
 
 public:
@@ -76,7 +73,7 @@ std::string Console::read() {
     }
     enum { Enter = '\n', BackSpc = 127 };
     for (;;) {
-        switch (int c = getChar()) {
+        switch (int c = get_char()) {
         case Enter: {
             std::lock_guard<std::mutex> lock(_mtx);
             std::string input = _input;
@@ -104,8 +101,9 @@ std::string Console::read() {
 }
 
 void Console::write(const char *text, size_t len) {
-    if (!len)
+    if (!len) {
         return;
+    }
     bool eol = text[len - 1] == '\n';
     std::lock_guard<std::mutex> lock(_mtx);
     // remove current input echo
@@ -116,64 +114,61 @@ void Console::write(const char *text, size_t len) {
     }
     // print text
     std::cout << text;
-    if (!eol)
+    if (!eol) {
         std::cout << std::endl;
+    }
     // print current input echo
     std::cout << _prompt << _input << std::flush;
 }
 
-struct Flags // this flag is shared between both the threads
-{
-    // the mini console
+struct Globals {
     Console console;
-    int s;
+    int socket;
 
-    // constructor.
-    Flags() {}
+    Globals() {}
 };
 
-int onexit(Flags &shared) {
-    shared.console.write("[log] connection terminated.");
-    close(shared.s);
+int onexit(Globals &globals) {
+    globals.console.write("[log] connection terminated.");
+    close(globals.socket);
 
     exit(EXIT_SUCCESS);
 }
 
-void network_recv(Flags &shared) {
+void network_recv(Globals &globals) {
     char buf[BUFSZ];
-    while (1) {
+    while (true) {
         memset(buf, 0, BUFSZ);
         unsigned total = 0;
         size_t count = 0;
-        while (1) {
-            // TODO: receive partitioned messages.
-            count = recv(shared.s, buf + total, BUFSZ - total, 0);
+        while (true) {
+            count = recv(globals.socket, buf + total, BUFSZ - total, 0);
 
             std::string logMessage2;
             logMessage2.append("[log] count = ");
             logMessage2.append(std::to_string(count));
-            shared.console.write(logMessage2);
-            // printf("[log] count = %lu\n", count);
+            globals.console.write(logMessage2);
+
             if (count == 0) {
-                // Connection terminated
-                onexit(shared);
+                onexit(globals);
             }
 
             total += count;
             if (!validate_message(buf, total)) {
-                shared.console.write("invalid message received");
+                globals.console.write("invalid message received, exiting");
                 // Invalid message, exiting
-                onexit(shared);
+                onexit(globals);
             }
 
             char lastchar = buf[total - 1];
             std::string logMessage1;
             logMessage1.append("[log] char at last buf index: ");
             logMessage1.push_back(lastchar);
-            shared.console.write(logMessage1);
+            globals.console.write(logMessage1);
+
             // as \n denotes end of message, we check for that.
             if (lastchar == '\n') {
-                shared.console.write("[log] end of msg.");
+                globals.console.write("[log] end of msg.");
                 break;
             }
         }
@@ -183,16 +178,16 @@ void network_recv(Flags &shared) {
         logMessage.append(std::to_string(total));
         logMessage.append(" bytes\n");
 
-        shared.console.write(logMessage);
+        globals.console.write(logMessage);
 
+        // Uses aux variable to use operator "=" overload instead of manual
+        // copying
         std::string aux = buf;
-        shared.console.write(aux);
+        globals.console.write(aux);
     }
 }
 
-void processInput(const std::string &input, Flags &shared) {
-    // shared.console.write(input);
-    // TODO: dispatch send to another thread.
+void process_input(const std::string &input, Globals &globals) {
     char buffer[BUFSZ];
     memset(buffer, 0, BUFSZ);
 
@@ -200,21 +195,13 @@ void processInput(const std::string &input, Flags &shared) {
         buffer[i] = input[i];
     }
 
+    // Appends \n to the final of the buffer to signal message end
     buffer[strlen(buffer)] = '\n';
 
-    /*for (size_t i = 0; i < strlen(buffer); i++) {
-        std::string aux = "";
-        aux.append(std::to_string(int(buffer[i])));
-        aux.append(", ");
-        shared.console.write(aux);
-    }*/
-
-    size_t count = send(shared.s, buffer, strlen(buffer), 0);
+    size_t count = send(globals.socket, buffer, strlen(buffer), 0);
     if (count != strlen(buffer)) {
         logexit("send");
     }
-
-    memset(buffer, 0, BUFSZ);
 }
 
 int main(int argc, char **argv) {
@@ -239,15 +226,16 @@ int main(int argc, char **argv) {
     char addrstr[BUFSZ];
     addrtostr(addr, addrstr, BUFSZ);
 
-    Flags shared;
-    shared.s = s;
+    Globals globals;
+    globals.socket = s;
     printf("connected to %s\n", addrstr);
-    std::thread threadProc(&network_recv, std::ref(shared));
+    std::thread recv_thread(&network_recv, std::ref(globals));
 
-    while (1) {
-        std::string input = shared.console.read();
-        processInput(input, shared);
+    while (true) {
+        std::string input = globals.console.read();
+        process_input(input, globals);
     }
-    threadProc.join();
-    return onexit(shared);
+
+    recv_thread.join();
+    return onexit(globals);
 }

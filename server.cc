@@ -1,4 +1,6 @@
 #include "common.h"
+#include "message.h"
+#include "messagebroker.h"
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,177 +22,6 @@
 
 using namespace std;
 
-typedef int Client;
-typedef string Tag;
-
-#define BUFSZ 500
-
-class MessageBroker {
-private:
-    map<Client, set<Tag>> controlMap;
-
-public:
-    MessageBroker() { this->controlMap = map<Client, set<Tag>>(); }
-
-    void delete_client(Client client) { controlMap.erase(client); }
-
-    string delete_all_clients() {
-        for (auto kv : controlMap) {
-            close(kv.first);
-        }
-
-        controlMap.clear();
-
-        return "ok";
-    }
-
-    Tag getTagFromSubscribeMessage(string msg) { return msg.substr(1); }
-
-    Tag getTagFromUnsubscribeMessage(string msg) { return msg.substr(1); }
-
-    bool validate_sub_unsub_message(string msg) {
-        auto msg_without_first = msg.substr(1);
-        for (auto ch : msg_without_first) {
-            if (!isalpha(ch)) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    string subscribe(Client client, string msg) {
-        if (!validate_sub_unsub_message(msg)) {
-            throw invalid_argument("invalid tag");
-        }
-        Tag subject = getTagFromSubscribeMessage(msg);
-        if (isSubscribed(client, subject)) {
-            auto message = "already subscribed +" + subject;
-            throw invalid_argument(message);
-        }
-        controlMap[client].emplace(subject);
-        return "subscribed +" + subject;
-    }
-
-    bool isSubscribed(Client client, Tag subject) {
-        auto element = controlMap[client].find(subject);
-        return element != controlMap[client].end();
-    }
-
-    string unsubscribe(Client client, string msg) {
-        if (!validate_sub_unsub_message(msg)) {
-            throw invalid_argument("invalid tag");
-        }
-        Tag subject = getTagFromUnsubscribeMessage(msg);
-        if (!isSubscribed(client, subject)) {
-            auto message = "not subscribed -" + subject;
-            throw invalid_argument(message);
-        }
-
-        controlMap[client].erase(subject);
-        return "unsubscribed -" + subject;
-    }
-
-    string onMessage(string msg) {
-        auto tags = getTags(msg);
-        publish(msg, tags);
-        return "ok";
-    }
-
-    void publish(string msg, set<Tag> tags) {
-        for (auto client : controlMap) {
-            auto tagsOfInterest = client.second;
-
-            // debugPrint(client);
-
-            vector<Tag> intersection;
-            set_intersection(tagsOfInterest.begin(), tagsOfInterest.end(),
-                             tags.begin(), tags.end(),
-                             std::back_inserter(intersection));
-
-            // If the intersection between the set of tags that the client is
-            // interested in and the set of tags in the message is not empty,
-            // that means the client is interested in at least one of the
-            // message's tags.
-            if (!intersection.empty()) {
-                send_data(client.first, msg);
-            }
-        }
-    }
-
-    void debugPrint(pair<Client, set<Tag>> clientData) {
-        cout << "Client " << clientData.first << endl;
-        cout << "Tags of interest:" << endl;
-        for (auto tag : clientData.second) {
-            cout << tag << endl;
-        }
-    }
-
-    void send_data(int client, string msg) const {
-        cout << client << " would receive the following message: \"" << msg
-             << "\"" << endl;
-        // TODO: send msg to client.
-        char buffer[BUFSZ];
-        memset(buffer, 0, BUFSZ);
-        for (size_t i = 0; i < msg.size(); i++) {
-            buffer[i] = msg[i];
-        }
-
-        buffer[strlen(buffer)] = '\n';
-
-        cout << "Will send this: " << endl;
-
-        for (size_t i = 0; i < strlen(buffer) + 1; i++) {
-            cout << (int)buffer[i] << ", ";
-        }
-        cout << endl;
-
-        send(client, buffer, strlen(buffer), 0);
-    }
-
-    set<Tag> getTags(string msg) const {
-        istringstream iss(msg);
-        vector<string> tokens{istream_iterator<string>{iss},
-                              istream_iterator<string>{}};
-
-        set<Tag> tags = set<Tag>();
-
-        for (auto token : tokens) {
-            if (token[0] == '#') {
-                Tag tag = getTagFromToken(token);
-                if (tag != "") {
-                    tags.emplace(tag);
-                }
-            }
-        }
-        return tags;
-    }
-
-    Tag getTagFromToken(Tag token) const {
-        // A tag has to have a single #.
-        Tag tag = "";
-
-        uint8_t amount_of_hashtags = 0;
-
-        for (size_t i = 0; i < token.size(); i++) {
-            auto c = token[i];
-
-            if (c == '#') {
-                amount_of_hashtags++;
-            }
-
-            if (amount_of_hashtags == 2) {
-                // not valid.
-                return "";
-            }
-
-            if (isalpha((int)c)) {
-                tag += c;
-            }
-        }
-        return tag;
-    }
-};
-
 void usage(int argc, char **argv) {
     printf("usage: %s <server port>\n", argv[0]);
     printf("example: %s 1337\n", argv[0]);
@@ -203,76 +34,21 @@ struct client_data {
     struct sockaddr_storage storage;
 };
 
-enum MessageType { SUBSCRIBE, UNSUBSCRIBE, MESSAGE, KILL };
-
-struct Message {
-    MessageType type;
-    string content;
-};
-
-string getMessageType(MessageType type) {
-    switch (type) {
-    case SUBSCRIBE:
-        return "SUBSCRIBE";
-    case UNSUBSCRIBE:
-        return "UNSUBSCRIBE";
-    case MESSAGE:
-        return "MESSAGE";
-    case KILL:
-        return "KILL";
-    default:
-        return "unknown";
-    }
-}
-
-Message parseMessage(char *buf) {
-    char firstletter = buf[0];
-    Message message;
-    string aux = buf;
-
-    aux = aux.substr(0, aux.size() - 1);
-
-    printf("[log] @parseMessage, last char of message is: %d\n",
-           aux[aux.size() - 1]);
-
-    auto bufzin = aux.c_str();
-
-    cout << "after parse to string: " << endl;
-    for (size_t i = 0; i < strlen(bufzin) + 1; i++) {
-        cout << (int)bufzin[i] << ", ";
-    }
-    cout << endl;
-
-    message.content = aux;
-    if (aux == "##kill") {
-        message.type = KILL;
-    } else if (firstletter == '+') {
-        message.type = SUBSCRIBE;
-    } else if (firstletter == '-') {
-        message.type = UNSUBSCRIBE;
-    } else {
-        message.type = MESSAGE;
-    }
-
-    return message;
-}
-
 string performAction(int socket, MessageBroker *broker, Message msg) {
     try {
-        switch (msg.type) {
+        switch (msg.get_type()) {
         case SUBSCRIBE:
             printf("[log] handling subscribe msg\n");
-            cout << msg.content << endl;
-            return broker->subscribe(socket, msg.content);
+            cout << msg.get_content() << endl;
+            return broker->subscribe(socket, msg.get_content());
             break;
         case UNSUBSCRIBE:
-            return broker->unsubscribe(socket, msg.content);
+            return broker->unsubscribe(socket, msg.get_content());
             break;
         case MESSAGE:
-            return broker->onMessage(msg.content);
+            return broker->onMessage(msg.get_content());
             break;
         case KILL:
-            // FIXME: kill is causing SIGSEGV on clients.
             return broker->delete_all_clients();
         default:
             throw invalid_argument("unknown message type");
@@ -285,7 +61,7 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
 }
 
 bool validate_message(Message message) {
-    for (auto ch : message.content) {
+    for (auto ch : message.get_content()) {
         if (static_cast<unsigned char>(ch) > 127) {
             return false;
         }
@@ -354,19 +130,19 @@ void *client_thread(void *data) {
         printf("[msg] full: %s, %d bytes: %s\n", caddrstr, (int)count, buf);
 
         // parse msg
-        Message message = parseMessage(buf);
+        auto message = Message::from_buffer(buf);
         if (!validate_message(message)) {
             printf("[log] message sent by client %s is invalid, aborting "
                    "connection\n",
                    caddrstr);
             break;
         }
-        printf("[log] message type: %s\n",
-               getMessageType(message.type).c_str());
+
+        printf("[log] message type: %s\n", message.get_str_type().c_str());
 
         string res = performAction(cdata->csock, broker, message);
 
-        if (message.type == KILL) {
+        if (message.get_type() == KILL) {
             printf("[log] received kill message, terminating...\n");
             exit(EXIT_SUCCESS);
         }
