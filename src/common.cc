@@ -72,11 +72,9 @@ int addrparse(const char *addrstr, const char *portstr,
 }
 
 bool validate_message(char *buffer) {
-    printf("Validating msg\n");
     std::string valid_special_chars = " ,.?!:;+-*/=@#$%()[]{}\n";
 
     for (size_t i = 0; i < strlen(buffer); i++) {
-        printf("Validating char %c\n", buffer[i]);
         if (!isalnum((int)buffer[i]) &&
             valid_special_chars.find(buffer[i]) == std::string::npos) {
             return false;

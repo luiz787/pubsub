@@ -45,41 +45,23 @@ void network_recv(Globals &globals) {
         while (true) {
             count = recv(globals.socket, buf + total, BUFSZ - total, 0);
 
-            std::string logMessage2;
-            logMessage2.append("[log] Amount of bytes recived: ");
-            logMessage2.append(std::to_string(count));
-            globals.console.write(logMessage2);
-
             if (count == 0) {
                 onexit(globals);
             }
 
             total += count;
             if (!validate_message(buf)) {
-                globals.console.write("invalid message received, exiting");
-                // Invalid message, exiting
+                globals.console.write(
+                    "[log] invalid message received, exiting");
                 onexit(globals);
             }
 
-            char lastchar = buf[total - 1];
-            std::string logMessage1;
-            logMessage1.append("[log] Last char at the buffer: ");
-            logMessage1.push_back(lastchar);
-            globals.console.write(logMessage1);
-
             // as \n denotes end of message, we check for that.
+            char lastchar = buf[total - 1];
             if (lastchar == '\n') {
-                globals.console.write("[log] end of msg.");
                 break;
             }
         }
-
-        std::string logMessage;
-        logMessage.append("received ");
-        logMessage.append(std::to_string(total));
-        logMessage.append(" bytes\n");
-
-        globals.console.write(logMessage);
 
         // Uses aux variable to use operator "=" overload instead of manual
         // copying
@@ -129,7 +111,7 @@ int main(int argc, char **argv) {
 
     Globals globals;
     globals.socket = s;
-    printf("connected to %s\n", addrstr);
+    printf("[log] connected to %s\n", addrstr);
 
     // Creates dedicated thread to receive messages from the network.
     std::thread recv_thread(&network_recv, std::ref(globals));
