@@ -60,21 +60,6 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
     }
 }
 
-bool validate_message(char *buffer) {
-    printf("Validating msg\n");
-    string valid_special_chars = " ,.?!:;+-*/=@#$%()[]{}\n";
-
-    for (size_t i = 0; i < strlen(buffer); i++) {
-        printf("Validating char %c\n", buffer[i]);
-        if (!isalnum((int)buffer[i]) &&
-            valid_special_chars.find(buffer[i]) == std::string::npos) {
-            printf("deu ruim\n");
-            return false;
-        }
-    }
-    return true;
-}
-
 void *client_thread(void *data) {
     struct client_data *cdata = (struct client_data *)data;
     struct sockaddr *caddr = (struct sockaddr *)(&cdata->storage);

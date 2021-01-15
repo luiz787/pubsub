@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <string>
 
 #include <arpa/inet.h>
 
@@ -68,4 +69,18 @@ int addrparse(const char *addrstr, const char *portstr,
     }
 
     return -1;
+}
+
+bool validate_message(char *buffer) {
+    printf("Validating msg\n");
+    std::string valid_special_chars = " ,.?!:;+-*/=@#$%()[]{}\n";
+
+    for (size_t i = 0; i < strlen(buffer); i++) {
+        printf("Validating char %c\n", buffer[i]);
+        if (!isalnum((int)buffer[i]) &&
+            valid_special_chars.find(buffer[i]) == std::string::npos) {
+            return false;
+        }
+    }
+    return true;
 }

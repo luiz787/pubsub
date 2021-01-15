@@ -15,5 +15,6 @@ int server_sockaddr_init(const char *portstr, struct sockaddr_storage *storage);
 void addrtostr(const struct sockaddr *addr, char *str, size_t strsize);
 int addrparse(const char *addrstr, const char *portstr,
               struct sockaddr_storage *storage);
+bool validate_message(char *buffer);
 
 #endif // COMMON_H

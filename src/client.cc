@@ -17,22 +17,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 
-void usage(int argc, char **argv) {
-    printf("usage: %s <server IP> <server port>\n", argv[0]);
-    printf("example: %s 127.0.0.1 51511\n", argv[0]);
-    exit(EXIT_FAILURE);
-}
-
 #define BUFSZ 500
-
-bool validate_message(char *msg, size_t size) {
-    for (size_t i = 0; i < size; i++) {
-        if (static_cast<unsigned char>(msg[i]) > 127) {
-            return false;
-        }
-    }
-    return true;
-}
 
 int get_char() {
     struct termios oldattr;
@@ -65,7 +50,7 @@ public:
 };
 
 std::string Console::read() {
-    { // activate prompt
+    {
         std::lock_guard<std::mutex> lock(_mtx);
         _prompt = "> ";
         _input.clear();
@@ -81,17 +66,19 @@ std::string Console::read() {
             _input.clear();
             std::cout << std::endl;
             return input;
-        } // unreachable: break;
+        }
         case BackSpc: {
             std::lock_guard<std::mutex> lock(_mtx);
-            if (_input.empty())
+            if (_input.empty()) {
                 break;
+            }
             _input.pop_back();
             std::cout << "\b \b" << std::flush;
         } break;
         default: {
-            if (c < ' ' || c >= '\x7f')
+            if (c < ' ' || c >= '\x7f') {
                 break;
+            }
             std::lock_guard<std::mutex> lock(_mtx);
             _input += c;
             std::cout << (char)c << std::flush;
@@ -106,21 +93,23 @@ void Console::write(const char *text, size_t len) {
     }
     bool eol = text[len - 1] == '\n';
     std::lock_guard<std::mutex> lock(_mtx);
-    // remove current input echo
     if (size_t size = _prompt.size() + _input.size()) {
         std::cout << std::setfill('\b') << std::setw(size) << ""
                   << std::setfill(' ') << std::setw(size) << ""
                   << std::setfill('\b') << std::setw(size) << "";
     }
-    // print text
     std::cout << text;
     if (!eol) {
         std::cout << std::endl;
     }
-    // print current input echo
     std::cout << _prompt << _input << std::flush;
 }
 
+void usage(int argc, char **argv) {
+    printf("usage: %s <server IP> <server port>\n", argv[0]);
+    printf("example: %s 127.0.0.1 51511\n", argv[0]);
+    exit(EXIT_FAILURE);
+}
 struct Globals {
     Console console;
     int socket;
@@ -145,7 +134,7 @@ void network_recv(Globals &globals) {
             count = recv(globals.socket, buf + total, BUFSZ - total, 0);
 
             std::string logMessage2;
-            logMessage2.append("[log] count = ");
+            logMessage2.append("[log] Amount of bytes recived: ");
             logMessage2.append(std::to_string(count));
             globals.console.write(logMessage2);
 
@@ -154,7 +143,7 @@ void network_recv(Globals &globals) {
             }
 
             total += count;
-            if (!validate_message(buf, total)) {
+            if (!validate_message(buf)) {
                 globals.console.write("invalid message received, exiting");
                 // Invalid message, exiting
                 onexit(globals);
@@ -162,7 +151,7 @@ void network_recv(Globals &globals) {
 
             char lastchar = buf[total - 1];
             std::string logMessage1;
-            logMessage1.append("[log] char at last buf index: ");
+            logMessage1.append("[log] Last char at the buffer: ");
             logMessage1.push_back(lastchar);
             globals.console.write(logMessage1);
 
@@ -229,6 +218,8 @@ int main(int argc, char **argv) {
     Globals globals;
     globals.socket = s;
     printf("connected to %s\n", addrstr);
+
+    // Creates dedicated thread to receive messages from the network.
     std::thread recv_thread(&network_recv, std::ref(globals));
 
     while (true) {
