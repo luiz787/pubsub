@@ -1,7 +1,7 @@
 #include "common.h"
+#include "console.h"
 
 #include <chrono>
-#include <iomanip>
 #include <iostream>
 #include <mutex>
 #include <sstream>
@@ -16,94 +16,6 @@
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <sys/types.h>
-
-#define BUFSZ 500
-
-int get_char() {
-    struct termios oldattr;
-    tcgetattr(STDIN_FILENO, &oldattr);
-    struct termios newattr = oldattr;
-    newattr.c_lflag &= ~(ICANON | ECHO);
-    tcsetattr(STDIN_FILENO, TCSANOW, &newattr);
-    const int ch = getchar();
-    tcsetattr(STDIN_FILENO, TCSANOW, &oldattr);
-    return ch;
-}
-
-class Console {
-private:
-    std::mutex _mtx;
-    std::string _input;
-    std::string _prompt;
-
-public:
-    Console() {}
-
-    Console(const Console &) = delete;
-    Console &operator=(const Console &) = delete;
-
-    std::string read();
-
-    void write(const char *text, size_t size);
-    void write(const char *text) { write(text, strlen(text)); }
-    void write(const std::string &text) { write(text.c_str(), text.size()); }
-};
-
-std::string Console::read() {
-    {
-        std::lock_guard<std::mutex> lock(_mtx);
-        _prompt = "> ";
-        _input.clear();
-        std::cout << _prompt << std::flush;
-    }
-    enum { Enter = '\n', BackSpc = 127 };
-    for (;;) {
-        switch (int c = get_char()) {
-        case Enter: {
-            std::lock_guard<std::mutex> lock(_mtx);
-            std::string input = _input;
-            _prompt.clear();
-            _input.clear();
-            std::cout << std::endl;
-            return input;
-        }
-        case BackSpc: {
-            std::lock_guard<std::mutex> lock(_mtx);
-            if (_input.empty()) {
-                break;
-            }
-            _input.pop_back();
-            std::cout << "\b \b" << std::flush;
-        } break;
-        default: {
-            if (c < ' ' || c >= '\x7f') {
-                break;
-            }
-            std::lock_guard<std::mutex> lock(_mtx);
-            _input += c;
-            std::cout << (char)c << std::flush;
-        } break;
-        }
-    }
-}
-
-void Console::write(const char *text, size_t len) {
-    if (!len) {
-        return;
-    }
-    bool eol = text[len - 1] == '\n';
-    std::lock_guard<std::mutex> lock(_mtx);
-    if (size_t size = _prompt.size() + _input.size()) {
-        std::cout << std::setfill('\b') << std::setw(size) << ""
-                  << std::setfill(' ') << std::setw(size) << ""
-                  << std::setfill('\b') << std::setw(size) << "";
-    }
-    std::cout << text;
-    if (!eol) {
-        std::cout << std::endl;
-    }
-    std::cout << _prompt << _input << std::flush;
-}
 
 void usage(int argc, char **argv) {
     printf("usage: %s <server IP> <server port>\n", argv[0]);
