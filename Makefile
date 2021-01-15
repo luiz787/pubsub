@@ -6,5 +6,5 @@ all:
 	g++ -g -Iinclude -Wall -Werror src/client.cc out/common.o out/console.o -lpthread -o cliente
 	g++ -g -Iinclude -Wall -Werror src/server.cc out/message.o out/messagebroker.o out/common.o -lpthread -o servidor
 clean:
-	rm out/*
+	rm out/*.o
 	rm cliente servidor
