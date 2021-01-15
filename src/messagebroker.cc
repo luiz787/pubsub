@@ -83,8 +83,6 @@ void MessageBroker::publish(std::string msg, std::set<Tag> tags) {
     for (auto client : this->controlMap) {
         auto tagsOfInterest = client.second;
 
-        // debugPrint(client);
-
         std::vector<Tag> intersection;
         set_intersection(tagsOfInterest.begin(), tagsOfInterest.end(),
                          tags.begin(), tags.end(),
@@ -101,9 +99,9 @@ void MessageBroker::publish(std::string msg, std::set<Tag> tags) {
 }
 
 void MessageBroker::send_data(int client, std::string msg) const {
-    std::cout << client << " would receive the following message: \"" << msg
+    std::cout << client << " will receive the following message: \"" << msg
               << "\"" << std::endl;
-    // TODO: send msg to client.
+
     char buffer[BUFSZ];
     memset(buffer, 0, BUFSZ);
     for (size_t i = 0; i < msg.size(); i++) {
@@ -111,11 +109,6 @@ void MessageBroker::send_data(int client, std::string msg) const {
     }
 
     buffer[strlen(buffer)] = '\n';
-
-    for (size_t i = 0; i < strlen(buffer) + 1; i++) {
-        std::cout << (int)buffer[i] << ", ";
-    }
-    std::cout << std::endl;
 
     send(client, buffer, strlen(buffer), 0);
 }
