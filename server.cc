@@ -62,7 +62,7 @@ string performAction(int socket, MessageBroker *broker, Message msg) {
 
 bool validate_message(char *buffer) {
     printf("Validating msg\n");
-    string valid_special_chars = ",.?!:;+-*/=@#$%()[]{}\n";
+    string valid_special_chars = " ,.?!:;+-*/=@#$%()[]{}\n";
 
     for (size_t i = 0; i < strlen(buffer); i++) {
         printf("Validating char %c\n", buffer[i]);
