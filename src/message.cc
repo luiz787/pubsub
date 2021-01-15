@@ -8,19 +8,10 @@ std::vector<Message> Message::from_buffer(char *buffer) {
     int start = 0;
     for (size_t i = 0; i < strlen(buffer); i++) {
         if (buffer[i] == '\n') {
-            printf("[debug] copying %lu bytes from buffer to aux buffer.\n",
-                   i - start);
-
-            for (size_t j = start; j <= i; j++) {
-                printf("%c - %d : ", buffer[j], (int)buffer[j]);
-            }
-
             std::string msg;
             for (size_t j = start; j <= i; j++) {
                 msg += buffer[j];
             }
-
-            printf("exact content copied: %s", msg.c_str());
             msgs.push_back(msg);
             start = i + 1;
         }
@@ -33,8 +24,6 @@ std::vector<Message> Message::from_buffer(char *buffer) {
     for (auto msg : msgs) {
         char firstletter = msg[0];
         std::string aux = msg;
-        printf("[log] aux size: %lu\n", aux.size());
-
         aux = aux.substr(0, aux.size() - 1);
 
         MessageType type;

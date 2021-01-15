@@ -75,8 +75,6 @@ std::string MessageBroker::onMessage(std::string msg) {
 }
 
 void MessageBroker::publish(std::string msg, std::set<Tag> tags) {
-    printf("[log] message %lu has the following tags: \n", msg.size());
-
     for (auto tag : tags) {
         printf("%s, ", tag.c_str());
     }
@@ -113,8 +111,6 @@ void MessageBroker::send_data(int client, std::string msg) const {
     }
 
     buffer[strlen(buffer)] = '\n';
-
-    std::cout << "Will send this: " << std::endl;
 
     for (size_t i = 0; i < strlen(buffer) + 1; i++) {
         std::cout << (int)buffer[i] << ", ";
