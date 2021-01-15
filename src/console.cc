@@ -1,5 +1,8 @@
 #include "console.h"
 
+// Adapted from
+// https://stackoverflow.com/questions/55414228/simultaneous-input-and-output-in-a-console
+
 int Console::get_char() {
     struct termios oldattr;
     tcgetattr(STDIN_FILENO, &oldattr);

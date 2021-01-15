@@ -10,6 +10,8 @@
 #include <iomanip>
 #include <iostream>
 
+// Adapted from
+// https://stackoverflow.com/questions/55414228/simultaneous-input-and-output-in-a-console
 class Console {
 private:
     std::mutex _mtx;
