@@ -26,8 +26,8 @@ public:
     int get_char();
 
     void write(const char *text, size_t size);
-    void write(const char *text) { write(text, strlen(text)); }
-    void write(const std::string &text) { write(text.c_str(), text.size()); }
+    void write(const char *text);
+    void write(const std::string &text);
 };
 
 #endif // CONSOLE_H

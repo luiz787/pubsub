@@ -49,6 +49,12 @@ std::string Console::read() {
     }
 }
 
+void Console::write(const char *text) { this->write(text, strlen(text)); }
+
+void Console::write(const std::string &text) {
+    this->write(text.c_str(), text.size());
+}
+
 void Console::write(const char *text, size_t len) {
     if (!len) {
         return;
