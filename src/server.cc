@@ -80,14 +80,6 @@ void *client_thread(void *data) {
         while (1) {
             count = recv(cdata->csock, buf + total, BUFSZ - total, 0);
 
-            /*cout << "Received this: " << endl;
-            for (size_t i = 0; i < strlen(buf); i++) {
-                if (buf[i] == '\n') {
-                    found_terminator = true;
-                }
-                cout << (int)buf[i] << ", ";
-            }
-            cout << endl;*/
             char lastchar = buf[strlen(buf) - 1];
             printf("[log] char at last buf index: %d\n", lastchar);
             if (count == 0) {
@@ -127,9 +119,6 @@ void *client_thread(void *data) {
             break;
         }
 
-        // parse msg
-        // TODO: create a vector of strings separated by \n, and process each
-        // separately.
         auto messages = Message::from_buffer(buf);
         for (auto message : messages) {
 
